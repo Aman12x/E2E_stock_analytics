@@ -1,0 +1,23 @@
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# VSCode settings
+.vscode/
+
+# OS & editor junk
+.DS_Store
+
+# Environment variables
+.env
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+
+# Heroku/Python-specific
+*.log
