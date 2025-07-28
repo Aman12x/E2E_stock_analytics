@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Reddit Stock Sentiment Analyzer</title>
+  <title>Stocky Teller</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -84,6 +84,138 @@
       color: #666;
     }
 
+    /* New Sentiment Display Styles */
+    .sentiment-gauge-container {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+
+    .sentiment-gauge {
+      width: 200px;
+      height: 100px;
+      position: relative;
+      background: linear-gradient(90deg, #dc3545 0%, #ffc107 50%, #28a745 100%);
+      border-radius: 100px 100px 0 0;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sentiment-gauge::after {
+      content: '';
+      position: absolute;
+      width: 160px;
+      height: 80px;
+      background: white;
+      border-radius: 80px 80px 0 0;
+      top: 20px;
+      left: 20px;
+    }
+
+    .gauge-needle {
+      position: absolute;
+      width: 3px;
+      height: 80px;
+      background: #333;
+      left: 50%;
+      bottom: 0;
+      transform-origin: bottom center;
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+
+    .gauge-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+      width: 200px;
+    }
+
+    .sentiment-details {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .sentiment-label {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .sentiment-score {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    .sentiment-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .sentiment-card {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .card-value {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .card-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sentiment-distribution {
+      margin: 20px 0;
+    }
+
+    .dist-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .dist-bar {
+      flex: 1;
+      height: 20px;
+      background: #eee;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .dist-fill {
+      height: 100%;
+      transition: width 0.8s ease;
+    }
+
+    .positive-fill { background: #28a745; }
+    .negative-fill { background: #dc3545; }
+    .neutral-fill { background: #ffc107; }
+
+    .interpretation {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #2196f3;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+
     .post-title {
       font-size: 1.1rem;
       font-weight: 600;
@@ -112,6 +244,17 @@
     .post.neutral {
       border-left: 5px solid #ffc107;
     }
+
+    @media (max-width: 600px) {
+      .sentiment-gauge-container {
+        flex-direction: column;
+        text-align: center;
+      }
+      
+      .sentiment-cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
   </style>
 </head>
 <body>
@@ -127,6 +270,34 @@
   </div>
 
   <script>
+    function getSentimentLabel(score) {
+      if (score >= 0.5) return { label: "Very Positive", color: "#28a745" };
+      if (score >= 0.1) return { label: "Slightly Positive", color: "#20c997" };
+      if (score > -0.1) return { label: "Neutral", color: "#6c757d" };
+      if (score > -0.5) return { label: "Slightly Negative", color: "#fd7e14" };
+      return { label: "Very Negative", color: "#dc3545" };
+    }
+
+    function getGaugeRotation(score) {
+      // Convert -1 to 1 range to 0 to 180 degrees
+      return ((score + 1) / 2) * 180;
+    }
+
+    function getInterpretation(score, postCount, distribution) {
+      const positiveCount = distribution.positive || 0;
+      const negativeCount = distribution.negative || 0;
+      const neutralCount = distribution.neutral || 0;
+      const positivePercent = ((positiveCount / postCount) * 100).toFixed(1);
+      
+      if (score >= 0.1) {
+        return `💡 <strong>Cautious Optimism:</strong> While ${positivePercent}% of posts are positive, the overall sentiment is mildly positive (${score.toFixed(3)}), suggesting measured optimism rather than strong enthusiasm.`;
+      } else if (score <= -0.1) {
+        return `⚠️ <strong>Bearish Sentiment:</strong> The sentiment analysis shows negative outlook with a score of ${score.toFixed(3)}, indicating concerns among Reddit users.`;
+      } else {
+        return `📊 <strong>Mixed Signals:</strong> Neutral sentiment (${score.toFixed(3)}) suggests Reddit users are undecided or have mixed opinions about this stock.`;
+      }
+    }
+
     document.getElementById('stockForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const stockSymbol = document.getElementById('stockSymbol').value.trim();
@@ -153,15 +324,89 @@
         html += `<h2>Results for ${data.stock_symbol}</h2>`;
 
         if (data.sentiment.success) {
+          const sentiment = data.sentiment.average_sentiment;
+          const sentimentInfo = getSentimentLabel(sentiment);
+          const gaugeRotation = getGaugeRotation(sentiment);
+          const distribution = data.sentiment.sentiment_distribution;
+          
           html += '<div class="sentiment-summary">';
-          html += `<h3>Sentiment Summary</h3>`;
-          html += `<p>Average Sentiment: ${(data.sentiment.average_sentiment * 100).toFixed(1)}%</p>`;
-          html += `<p>Total Posts: ${data.sentiment.post_count}</p>`;
-          html += `<ul>`;
-          html += `<li>Positive: ${data.sentiment.sentiment_distribution.positive || 0}</li>`;
-          html += `<li>Neutral: ${data.sentiment.sentiment_distribution.neutral || 0}</li>`;
-          html += `<li>Negative: ${data.sentiment.sentiment_distribution.negative || 0}</li>`;
-          html += `</ul>`;
+          html += `<h3>Sentiment Analysis</h3>`;
+          
+          // Gauge and main sentiment display
+          html += '<div class="sentiment-gauge-container">';
+          html += '<div>';
+          html += `<div class="sentiment-gauge">`;
+          html += `<div class="gauge-needle" style="transform: translateX(-50%) rotate(${gaugeRotation}deg);"></div>`;
+          html += `</div>`;
+          html += '<div class="gauge-labels">';
+          html += '<span>Negative</span><span>Neutral</span><span>Positive</span>';
+          html += '</div>';
+          html += '</div>';
+          html += '<div class="sentiment-details">';
+          html += `<div class="sentiment-label" style="color: ${sentimentInfo.color};">${sentimentInfo.label}</div>`;
+          html += `<div class="sentiment-score">Score: ${sentiment.toFixed(3)} (Scale: -1.0 to +1.0)</div>`;
+          html += `<div style="font-size: 14px; color: #666;">Based on ${data.sentiment.post_count} Reddit posts</div>`;
+          html += '</div>';
+          html += '</div>';
+
+          // Cards with key metrics
+          html += '<div class="sentiment-cards">';
+          html += '<div class="sentiment-card">';
+          html += `<div class="card-value">${data.sentiment.post_count}</div>`;
+          html += '<div class="card-label">Total Posts</div>';
+          html += '</div>';
+          html += '<div class="sentiment-card">';
+          html += `<div class="card-value" style="color: #28a745;">${distribution.positive || 0}</div>`;
+          html += '<div class="card-label">Positive</div>';
+          html += '</div>';
+          html += '<div class="sentiment-card">';
+          html += `<div class="card-value" style="color: #ffc107;">${distribution.neutral || 0}</div>`;
+          html += '<div class="card-label">Neutral</div>';
+          html += '</div>';
+          html += '<div class="sentiment-card">';
+          html += `<div class="card-value" style="color: #dc3545;">${distribution.negative || 0}</div>`;
+          html += '<div class="card-label">Negative</div>';
+          html += '</div>';
+          html += '</div>';
+
+          // Distribution bars
+          html += '<div class="sentiment-distribution">';
+          html += '<h4>Post Distribution</h4>';
+          const total = data.sentiment.post_count;
+          
+          if (distribution.positive) {
+            const width = (distribution.positive / total) * 100;
+            html += '<div class="dist-item">';
+            html += `<span style="width: 70px;">Positive:</span>`;
+            html += '<div class="dist-bar"><div class="dist-fill positive-fill" style="width: ' + width + '%;"></div></div>';
+            html += `<span>${distribution.positive} (${width.toFixed(1)}%)</span>`;
+            html += '</div>';
+          }
+          
+          if (distribution.neutral) {
+            const width = (distribution.neutral / total) * 100;
+            html += '<div class="dist-item">';
+            html += `<span style="width: 70px;">Neutral:</span>`;
+            html += '<div class="dist-bar"><div class="dist-fill neutral-fill" style="width: ' + width + '%;"></div></div>';
+            html += `<span>${distribution.neutral} (${width.toFixed(1)}%)</span>`;
+            html += '</div>';
+          }
+          
+          if (distribution.negative) {
+            const width = (distribution.negative / total) * 100;
+            html += '<div class="dist-item">';
+            html += `<span style="width: 70px;">Negative:</span>`;
+            html += '<div class="dist-bar"><div class="dist-fill negative-fill" style="width: ' + width + '%;"></div></div>';
+            html += `<span>${distribution.negative} (${width.toFixed(1)}%)</span>`;
+            html += '</div>';
+          }
+          html += '</div>';
+
+          // Interpretation
+          html += `<div class="interpretation">`;
+          html += getInterpretation(sentiment, data.sentiment.post_count, distribution);
+          html += `</div>`;
+          
           html += `</div>`;
 
           html += '<h3>Top Reddit Posts</h3>';
@@ -169,7 +414,7 @@
             const sentimentClass = post.sentiment > 0 ? 'positive' : (post.sentiment < 0 ? 'negative' : 'neutral');
             html += `<div class="post ${sentimentClass}">`;
             html += `<div class="post-title"><a href="${post.url}" target="_blank">${post.title}</a></div>`;
-            html += `<div class="post-meta">Posted in r/${post.subreddit} on ${post.created_utc} | Score: ${post.score} | Sentiment: ${(post.sentiment * 100).toFixed(1)}%</div>`;
+            html += `<div class="post-meta">Posted in r/${post.subreddit} on ${post.created_utc} | Score: ${post.score} | Sentiment: ${post.sentiment.toFixed(3)}</div>`;
             if (post.text) html += `<div class="post-text">${post.text}</div>`;
             html += `</div>`;
           });
@@ -177,10 +422,10 @@
           html += `<p class="error">${data.sentiment.error}</p>`;
         }
 
-        if (data.stock_data.success) {
+        if (data.stock_data && data.stock_data.success) {
           html += `<h3>Stock Data</h3>`;
           html += `<p>Current Price: ${data.stock_data.data.currency}${data.stock_data.data.current_price.toFixed(2)}</p>`;
-        } else {
+        } else if (data.stock_data) {
           html += `<p class="error">${data.stock_data.error}</p>`;
         }
 
