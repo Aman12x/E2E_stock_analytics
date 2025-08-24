@@ -3,7 +3,7 @@ Link to Access: https://e2e-stock-analytics.onrender.com
 
 Reddit Discussions based Stock Sentiment Analyzer
 
-A web application that analyzes Reddit sentiment for stock symbols using natural language processing and provides visual sentiment insights from popular investing subreddits.
+A web application that analyzes Reddit sentiment for stock symbols using natural language processing and provides visual sentiment insights from popular investment/finance subreddits.
 
 Features
 
